@@ -1,0 +1,98 @@
+---
+title: "Prediction"
+author: "Ben Myall"
+date: "17/05/2020"
+output: html_document
+---
+# Predicton 
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+What We wish to predict in this project is the classe variable, and we can do this by testing a few different prediction models and trying to find the one with the smallest error, then once that is done we can apply the best model to the test data to see what values we can expect. First we must load packages that we suspect we may use, as well as clean the datasets in such a way that N/A values are accounted for and dealt with 
+
+```{r data, echo=TRUE}
+library(ggplot2)
+library(caret)
+library(pgmm)
+library(rpart)
+library(gbm)
+library(e1071)
+library(glmnet)
+library(elasticnet)
+library(randomForest)
+library(dplyr)
+library(klaR)
+library(rattle)
+
+train <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), 
+                  header = TRUE,
+                  na.strings = c("NA", "", "#DIV/0!"))
+test <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),
+                 header = TRUE,
+                 na.strings = c("NA", "", "#DIV/0!"))
+
+traincl <- train %>%
+  dplyr::select(-(1:7)) %>%
+  select_if(colSums(is.na(.)) == 0) %>%
+  
+  mutate(classe = as.factor(classe))
+testcl <- test %>%
+  dplyr::select(-(1:7)) %>%
+  select_if(colSums(is.na(.)) == 0)
+
+```
+
+
+## Model Selection
+
+Once we have this we can look at some models to see which one has a low enougth error to make our prediction, we will first look at a linear discriminat analysis, applying a 5 fold cross validation.
+
+
+```{r lda,echo=TRUE}
+modlda <- train(classe ~ .,
+                data = traincl,
+                method = "lda",
+                trControl = trainControl(method = "cv", number = 5))
+cmlda <- confusionMatrix(predict(modlda, traincl), traincl$classe)
+cmlda$table
+cmlda$overall[1]
+```
+
+as we can see the accurate is around 0.705, so there is a good chance there is a better model out there. Next we will look at the desicion tree model.
+
+```{r desc tree, echo=TRUE}
+decisionTreeMod1 <- train(classe ~ ., method="rpart", data=traincl,trControl = trainControl(method = "cv", number = 5))
+fancyRpartPlot(decisionTreeMod1$finalModel)
+
+predictTreeMod1 <- predict(decisionTreeMod1, traincl)
+tree <- confusionMatrix(predictTreeMod1, traincl$classe)
+tree$table
+tree$overall[1]
+```
+
+The accuracy for this is 0.496, so this model can still be beaten, so next we want to look at a random forest 
+
+```{r rand for, echo=TRUE}
+randomForestMod1 <- train(classe ~ ., data=traincl, method="rf",trControl = trainControl(method = "cv", number = 5))
+randomForestMod1$finalModel
+
+predictForestMod1<- predict(randomForestMod1, traincl)
+forest<- confusionMatrix(predictForestMod1, traincl$classe)
+forest$table
+```
+
+We can then see fom this that the random forest has a very high accuracy, so this is the prediction model we will use in our prediction
+
+## Predicting the test set
+
+The final part of this project is to predict the classe values in our test set, which we do with the following
+
+```{r final, echo=TRUE}
+quizTest<- predict(randomForestMod1, testcl)
+quizTest
+
+```
+
+
+
+
